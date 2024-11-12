@@ -24,7 +24,7 @@ const loadExtensionTranslation = async function (svgEditor) {
 
 export default {
   name,
-  async init () {
+  async init() {
     const svgEditor = this
     const { svgCanvas } = svgEditor
     const { ChangeElementCommand } = svgCanvas.history
@@ -33,6 +33,7 @@ export default {
     let selElems
     let started
     let newFO
+    let startX, startY;
     await loadExtensionTranslation(svgEditor)
 
     /**
@@ -74,7 +75,7 @@ export default {
     return {
       name: svgEditor.i18next.t(`${name}:name`),
       // The callback should be used to load the DOM with the appropriate UI items
-      callback () {
+      callback() {
         // Add the button and its handler(s)
         // Note: the star extension needs to be loaded before the polygon extension
         const fbtitle = `${name}:title`
@@ -238,29 +239,51 @@ export default {
           }
         })
       },
-      mouseDown (opts) {
+      mouseDown(opts) {
         if (svgCanvas.getMode() === 'star') {
-          const fill = svgCanvas.getColor('fill')
-          const stroke = svgCanvas.getColor('stroke')
-          const strokeWidth = svgCanvas.getStrokeWidth()
-          started = true
+          const fill = svgCanvas.getColor('fill');
+          const stroke = svgCanvas.getColor('stroke');
+          const strokeWidth = 2;
+          started = true;
+
+          // Define as coordenadas iniciais
+          startX = opts.start_x;
+          startY = opts.start_y;
+
+          // Cria o SVG do 'X' usando duas linhas
           newFO = svgCanvas.addSVGElementsFromJson({
-            element: 'polygon',
+            element: 'g', // agrupa as duas linhas
             attr: {
-              cx: opts.start_x,
-              cy: opts.start_y,
               id: svgCanvas.getNextId(),
-              shape: 'star',
-              point: $id('starNumPoints').value,
-              r: 0,
-              radialshift: $id('radialShift').value,
-              r2: 0,
-              orient: 'point',
-              fill,
-              stroke,
-              'stroke-width': strokeWidth
-            }
-          })
+              shape: 'xShape' // novo tipo de forma
+            },
+            children: [
+              {
+                element: 'line',
+                attr: {
+                  x1: startX,
+                  y1: startY,
+                  x2: startX,
+                  y2: startY,
+                  stroke,
+                  'stroke-width': strokeWidth,
+                  'stroke-linecap': 'round'
+                }
+              },
+              {
+                element: 'line',
+                attr: {
+                  x1: startX,
+                  y1: startY,
+                  x2: startX,
+                  y2: startY,
+                  stroke,
+                  'stroke-width': strokeWidth,
+                  'stroke-linecap': 'round'
+                }
+              }
+            ]
+          });
           return {
             started: true
           }
@@ -292,66 +315,29 @@ export default {
         }
         return undefined
       },
-      mouseMove (opts) {
+      mouseMove(opts) {
         if (!started) {
           return undefined
         }
         if (svgCanvas.getMode() === 'star') {
-          const cx = Number(newFO.getAttribute('cx'))
-          const cy = Number(newFO.getAttribute('cy'))
-          const point = Number(newFO.getAttribute('point'))
-          const orient = newFO.getAttribute('orient')
-          const fill = newFO.getAttribute('fill')
-          const stroke = newFO.getAttribute('stroke')
-          const strokeWidth = Number(newFO.getAttribute('stroke-width'))
-          const radialshift = Number(newFO.getAttribute('radialshift'))
+          // Calcula a distância do ponto inicial ao ponto atual do mouse
+          const x = opts.mouse_x;
+          const y = opts.mouse_y;
+          const deltaX = x - startX;
+          const deltaY = y - startY;
+          const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-          let x = opts.mouse_x
-          let y = opts.mouse_y
+          // Define o tamanho do 'X' com base na distância
+          newFO.firstChild.setAttribute('x1', startX - distance);
+          newFO.firstChild.setAttribute('y1', startY - distance);
+          newFO.firstChild.setAttribute('x2', startX + distance);
+          newFO.firstChild.setAttribute('y2', startY + distance);
 
-          const circumradius =
-            Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) / 1.5
-          const RadiusMultiplier = document.getElementById('RadiusMultiplier').value
-          const inradius =
-            circumradius / RadiusMultiplier
-          newFO.setAttribute('r', circumradius)
-          newFO.setAttribute('r2', inradius)
-          newFO.setAttribute('starRadiusMultiplier', RadiusMultiplier)
+          newFO.lastChild.setAttribute('x1', startX + distance);
+          newFO.lastChild.setAttribute('y1', startY - distance);
+          newFO.lastChild.setAttribute('x2', startX - distance);
+          newFO.lastChild.setAttribute('y2', startY + distance);
 
-          let polyPoints = ''
-          for (let s = 0; point >= s; s++) {
-            let angle = 2.0 * Math.PI * (s / point)
-            if (orient === 'point') {
-              angle -= Math.PI / 2
-            } else if (orient === 'edge') {
-              angle = angle + Math.PI / point - Math.PI / 2
-            }
-
-            x = circumradius * Math.cos(angle) + cx
-            y = circumradius * Math.sin(angle) + cy
-
-            polyPoints += x + ',' + y + ' '
-
-            if (!isNaN(inradius)) {
-              angle = 2.0 * Math.PI * (s / point) + Math.PI / point
-              if (orient === 'point') {
-                angle -= Math.PI / 2
-              } else if (orient === 'edge') {
-                angle = angle + Math.PI / point - Math.PI / 2
-              }
-              angle += radialshift
-
-              x = inradius * Math.cos(angle) + cx
-              y = inradius * Math.sin(angle) + cy
-
-              polyPoints += x + ',' + y + ' '
-            }
-          }
-          newFO.setAttribute('points', polyPoints)
-          newFO.setAttribute('fill', fill)
-          newFO.setAttribute('stroke', stroke)
-          newFO.setAttribute('stroke-width', strokeWidth)
-          /* const shape = */ newFO.getAttribute('shape')
 
           return {
             started: true
@@ -395,7 +381,7 @@ export default {
         }
         return undefined
       },
-      mouseUp () {
+      mouseUp() {
         if (svgCanvas.getMode() === 'star') {
           const r = newFO.getAttribute('r')
           return {
@@ -414,7 +400,7 @@ export default {
         }
         return undefined
       },
-      selectedChanged (opts) {
+      selectedChanged(opts) {
         // Use this to update the current selected elements
         selElems = opts.elems
         let i = selElems.length
