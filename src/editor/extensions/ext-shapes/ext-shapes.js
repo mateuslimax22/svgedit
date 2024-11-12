@@ -22,7 +22,7 @@ const loadExtensionTranslation = async function (svgEditor) {
 
 export default {
   name,
-  async init () {
+  async init() {
     const svgEditor = this
     const canv = svgEditor.svgCanvas
     const { $id, $click } = canv
@@ -34,11 +34,14 @@ export default {
     const startClientPos = {}
 
     let curShape
+    let curLabel
+    let curLine
+    let curGroup
     let startX
     let startY
 
     return {
-      callback () {
+      callback() {
         if ($id('tool_shapelib') === null) {
           const extPath = svgEditor.configObj.curConfig.extPath
           const buttonTemplate = `
@@ -53,7 +56,7 @@ export default {
           })
         }
       },
-      mouseDown (opts) {
+      mouseDown(opts) {
         const mode = canv.getMode()
         if (mode !== modeId) { return undefined }
 
@@ -67,16 +70,68 @@ export default {
         startClientPos.x = opts.event.clientX
         startClientPos.y = opts.event.clientY
 
+        curGroup = canv.addSVGElementsFromJson({
+          element: 'g',
+          attr: {
+            id: canv.getNextId()
+          }
+        })
+
+
         curShape = canv.addSVGElementsFromJson({
           element: 'path',
           curStyles: true,
           attr: {
             d: currentD,
             id: canv.getNextId(),
-            opacity: curStyle.opacity / 2,
-            style: 'pointer-events:none'
+            opacity: curStyle.opacity,
+            style: 'pointer-events:none',
+            'stroke-width': 1,
+            'fill': 'black'
           }
         })
+        canv.recalculateDimensions(curShape);
+        lastBBox = curShape.getBBox();
+        const canvasWidth = canv.getWidth()
+        const lineLength = canvasWidth * 0.1
+        const lineX2 = x + lineLength
+        const lineY2 = y + 20
+
+        curLine = canv.addSVGElementsFromJson({
+          element: 'line',
+          curStyles: true,
+          attr: {
+            x1: x+20,
+            y1: lineY2,
+            x2: lineX2,
+            y2: lineY2,
+            id: canv.getNextId(),
+            opacity: curStyle.opacity,
+            style: 'pointer-events:none',
+            'stroke-width': 1
+          }
+        })
+
+        curLabel = canv.addSVGElementsFromJson({
+          element: 'text',
+          curStyles: true,
+          attr: {
+            x: lineX2, // Define a coordenada x do texto como sendo igual à coordenada x da ponta final da linha
+            y: lineY2 - 5, // Define a coordenada y do texto como sendo igual à coordenada y da ponta final da linha
+            id: canv.getNextId(),
+            opacity: curStyle.opacity,
+            style: 'pointer-events:none',
+            'text-anchor': 'middle',
+            'font-size': 12,
+            'stroke-width': 1
+          }
+        })
+
+        curGroup.appendChild(curShape)
+        curGroup.appendChild(curLine)
+        curGroup.appendChild(curLabel)
+
+        curLabel.textContent = "note"
 
         curShape.setAttribute('transform', 'translate(' + x + ',' + y + ') scale(0.005) translate(' + -x + ',' + -y + ')')
 
@@ -88,7 +143,7 @@ export default {
           started: true
         }
       },
-      mouseMove (opts) {
+      mouseMove(opts) {
         const mode = canv.getMode()
         if (mode !== modeId) { return }
 
@@ -126,6 +181,19 @@ export default {
         const translateOrigin = svgroot.createSVGTransform()
         const scale = svgroot.createSVGTransform()
         const translateBack = svgroot.createSVGTransform()
+        //line
+        const canvasWidth = canv.getWidth()
+        lastBBox = curShape.getBBox();
+
+        const lineLength = canvasWidth * 0.1
+        const lineX2 = x + lineLength
+        curLine.setAttribute('y1', lastBBox.y + lastBBox.height / 2);
+        curLine.setAttribute('y2', lastBBox.y + lastBBox.height / 2);
+        curLine.setAttribute('x2', lineX2)
+      
+        curLabel.setAttribute('x', lineX2)
+        curLabel.setAttribute('y', lastBBox.y + lastBBox.height / 2 - 5);
+      
 
         translateOrigin.setTranslate(-(left + tx), -(top + ty))
         if (!evt.shiftKey) {
@@ -145,15 +213,20 @@ export default {
 
         lastBBox = curShape.getBBox()
       },
-      mouseUp (opts) {
+      mouseUp(opts) {
         const mode = canv.getMode()
         if (mode !== modeId) { return undefined }
 
         const keepObject = (opts.event.clientX !== startClientPos.x && opts.event.clientY !== startClientPos.y)
 
+        const selectToolButton = document.getElementById('tool_select');
+        if (selectToolButton) {
+          selectToolButton.click();
+        }
+
         return {
           keep: keepObject,
-          element: curShape,
+          elements: curGroup,
           started: false
         }
       }
