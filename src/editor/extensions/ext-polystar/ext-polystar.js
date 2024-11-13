@@ -243,7 +243,7 @@ export default {
         if (svgCanvas.getMode() === 'star') {
           const fill = svgCanvas.getColor('fill');
           const stroke = svgCanvas.getColor('stroke');
-          const strokeWidth = 2;
+          const strokeWidth = 10;
           started = true;
 
           // Define as coordenadas iniciais
@@ -264,8 +264,7 @@ export default {
                   x1: startX,
                   y1: startY,
                   x2: startX,
-                  y2: startY,
-                  stroke,
+                  y2: startY, stroke,
                   'stroke-width': strokeWidth,
                   'stroke-linecap': 'round'
                 }
