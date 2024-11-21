@@ -16,5 +16,5 @@ instrumented
 .vscode
 .DS_Store
 .idea
-dist
+
 coverage/coverage-summary.json
